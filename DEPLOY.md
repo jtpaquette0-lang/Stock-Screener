@@ -108,10 +108,11 @@ the secrets in the next step.
 ## 5. Automated daily data refresh (already wired)
 
 `.github/workflows/refresh.yml` rebuilds `universe_cache.json` every morning
-(10 AM Eastern; 15:00 UTC) and commits it; Streamlit Cloud auto-redeploys with
-fresh data. GitHub cron is UTC-only and doesn't observe DST, so during summer
-(Daylight Saving) it fires at 11 AM Eastern — change `15` to `14` in the cron if
-you'd rather it stay 10 AM during summer.
+(13:50 UTC = 9:50 AM Eastern in summer) and commits it; Streamlit Cloud
+auto-redeploys with fresh data. GitHub cron is UTC-only and doesn't observe DST,
+so in winter this fires at 8:50 AM Eastern. Also note GitHub scheduled runs are
+best-effort and can be delayed or occasionally skipped — the manual "Run
+workflow" button is always reliable if you need an on-demand refresh.
 
 **One thing to enable it:** add the FMP key as a GitHub secret so the Action can
 fetch data:

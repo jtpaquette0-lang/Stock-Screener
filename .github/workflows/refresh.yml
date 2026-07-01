@@ -5,10 +5,11 @@ name: Daily universe cache refresh
 # work. You can also trigger it by hand from the Actions tab (workflow_dispatch).
 on:
   schedule:
-    # GitHub cron is UTC-only (no DST). 15:00 UTC = 10:00 AM Eastern Standard
-    # Time (winter). During Daylight Saving (Mar–Nov) this fires at 11:00 AM
-    # Eastern — change 15 to 14 if you want 10:00 AM during summer instead.
-    - cron: "0 15 * * *"
+    # 13:50 UTC = 9:50 AM Eastern Daylight Time (summer). GitHub cron is UTC-only
+    # and doesn't observe DST, so in winter (EST) this fires at 8:50 AM Eastern.
+    # The :50 minute avoids the top-of-hour congestion that delays/skips cron runs.
+    # (For 9:50 AM in winter instead, change 13 to 14.)
+    - cron: "50 13 * * *"
   workflow_dispatch: {}        # manual "Run workflow" button
 
 # Allow the job to push the updated cache back to the repo.
