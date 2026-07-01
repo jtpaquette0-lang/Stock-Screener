@@ -3152,7 +3152,15 @@ def show_screener_page():
     _sel_sec = st.session_state.get("filter_sectors", [])
     if _sel_idx:
         _idx_map = st.session_state.get("ticker_index_map", {})
-        univ = [r for r in univ if any(ix in _idx_map.get(r["symbol"], set()) for ix in _sel_idx)]
+        def _seg_match(r):
+            tags = _idx_map.get(r["symbol"], set())
+            try: mc = float(r.get("mkt_cap_raw") or 0)
+            except (TypeError, ValueError): mc = 0
+            tier = ("Large Cap ($10B+)" if mc >= 10e9
+                    else "Mid Cap ($2–10B)" if mc >= 2e9
+                    else "Small Cap (<$2B)")
+            return any(s in tags or s == tier for s in _sel_idx)
+        univ = [r for r in univ if _seg_match(r)]
     if _sel_sec:
         univ = [r for r in univ if r.get("sector","—") in _sel_sec]
 
@@ -3184,13 +3192,14 @@ def show_screener_page():
                     f"Universe: {n_univ} companies</div>", unsafe_allow_html=True)
         st.markdown("---")
 
-        # ── INDEX FILTER ────────────────────────────────────
+        # ── INDEX / MARKET-CAP SEGMENT FILTER ───────────────
         st.markdown("<div style='font-size:12px;font-weight:700;color:#1a2332;"
-                    "margin-bottom:4px;'>🗂 Index</div>", unsafe_allow_html=True)
-        all_indexes = ["S&P 500", "NASDAQ 100"]
+                    "margin-bottom:4px;'>🗂 Index / Market Cap</div>", unsafe_allow_html=True)
+        all_indexes = ["S&P 500", "NASDAQ 100",
+                       "Large Cap ($10B+)", "Mid Cap ($2–10B)", "Small Cap (<$2B)"]
         sel_indexes = st.multiselect("Index", all_indexes, default=[],
                                      key="filter_indexes",
-                                     placeholder="All indexes",
+                                     placeholder="All companies",
                                      label_visibility="collapsed")
 
         # ── SECTOR FILTER ───────────────────────────────────
