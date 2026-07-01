@@ -433,6 +433,13 @@ def build_row_from_parts(sym, prof, km, rat, inc_list):
         r0 = gf(inc_list[0],"revenue") or 0
         r2 = gf(inc_list[2],"revenue") or 0
         if r2 and r2>0: rev_cagr = ((r0/r2)**0.5-1)*100
+    # Flag pre-revenue / early companies (rev < $10M in the current OR prior year).
+    # Their revenue-growth % is computed off a near-zero base (Joby $0.1M→$53M =
+    # +39,000%), which distorts growth screens — so it's optionally excludable.
+    _rn = gf(inc_list[0], "revenue") if inc_list else None
+    _rp = gf(inc_list[1], "revenue") if len(inc_list) >= 2 else None
+    _revs = [x for x in (_rn, _rp) if x is not None]
+    pre_revenue = (not _revs) or (min(_revs) < 10_000_000)
     if len(inc_list) >= 2:
         e0 = gf(inc_list[0],"eps","epsdiluted") or 0
         e1 = gf(inc_list[1],"eps","epsdiluted") or 0
@@ -513,6 +520,7 @@ def build_row_from_parts(sym, prof, km, rat, inc_list):
         "peg":peg, "pe":pe, "ev_ebitda":eveb, "debt_equity":de,
         "current_ratio":cr, "int_coverage":ic,
         "roa":roa, "eps_growth":eps_growth, "pfcf":pfcf, "pb":pb,
+        "pre_revenue":pre_revenue,
     }
 
 def fetch_earnings_map(days_ahead=100):
@@ -3163,6 +3171,11 @@ def show_screener_page():
         univ = [r for r in univ if _seg_match(r)]
     if _sel_sec:
         univ = [r for r in univ if r.get("sector","—") in _sel_sec]
+    # Optional: exclude pre-revenue companies (toggle under the Revenue Growth metric)
+    _ms_now = st.session_state.get("metric_states") or {}
+    if (_ms_now.get("Revenue Growth (YoY)", {}).get("enabled")
+            and st.session_state.get("exclude_prerev")):
+        univ = [r for r in univ if not r.get("pre_revenue")]
 
     n_univ = len(univ)
 
@@ -3265,6 +3278,15 @@ def show_screener_page():
                 else:
                     if mname not in hlp: hlp.append(mname)
                     if mname in rp: rp.remove(mname)
+
+                # Pre-revenue toggle — only under the Revenue Growth metric
+                if mname == "Revenue Growth (YoY)":
+                    st.checkbox(
+                        "Exclude pre-revenue (rev < $10M)",
+                        key="exclude_prerev",
+                        help="Hide companies whose revenue was under $10M in the current "
+                             "OR prior year. Their growth % is computed off a near-zero base "
+                             "(e.g. Joby $0.1M→$53M = +39,000%), which distorts the ranking.")
 
             st.markdown("<div style='margin-bottom:4px;'></div>", unsafe_allow_html=True)
 
