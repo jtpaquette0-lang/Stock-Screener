@@ -1,0 +1,49 @@
+name: Daily universe cache refresh
+
+# Rebuilds universe_cache.json every morning and commits it. Streamlit Cloud
+# auto-redeploys on the new commit, so the app serves fresh data with no manual
+# work. You can also trigger it by hand from the Actions tab (workflow_dispatch).
+on:
+  schedule:
+    # GitHub cron is UTC-only (no DST). 15:00 UTC = 10:00 AM Eastern Standard
+    # Time (winter). During Daylight Saving (Mar–Nov) this fires at 11:00 AM
+    # Eastern — change 15 to 14 if you want 10:00 AM during summer instead.
+    - cron: "0 15 * * *"
+  workflow_dispatch: {}        # manual "Run workflow" button
+
+# Allow the job to push the updated cache back to the repo.
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Rebuild the cache
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        run: python rebuild_cache.py
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name  "cache-bot"
+          git config user.email "cache-bot@users.noreply.github.com"
+          git add universe_cache.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: daily universe cache refresh"
+            git push
+          fi

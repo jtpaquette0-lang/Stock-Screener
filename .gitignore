@@ -1,0 +1,22 @@
+# ── Secrets — NEVER commit these ──────────────────────────────
+.streamlit/secrets.toml
+*.key
+.env
+
+# ── Local dev data (production portfolio lives in the database) ──
+portfolio.json
+
+# ── Python ──
+__pycache__/
+_pycache_/
+*.pyc
+*.pyo
+
+# ── Editor / OS ──
+.claude/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# NOTE: universe_cache.json IS committed on purpose — the hosted app loads it
+# instantly, and the daily GitHub Action refreshes + commits it.
