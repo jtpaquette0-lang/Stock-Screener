@@ -368,12 +368,23 @@ if not st.session_state.universe_loaded:
 # ─────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────
-def fmp(endpoint, params={}):
+def fmp(endpoint, params={}, _retries=4):
+    """FMP GET with retry-and-backoff. FMP rate-limits (429) under heavy parallel
+    load — without retries a throttled call silently drops that company from the
+    universe. We retry 429s and transient errors with increasing backoff so the
+    bulk rebuild keeps the full universe instead of thinning out."""
     p = dict(params); p["apikey"] = API_KEY
-    try:
-        r = requests.get(f"{BASE}/{endpoint}", params=p, timeout=15)
-        if r.status_code == 200: return r.json()
-    except: pass
+    for attempt in range(_retries):
+        try:
+            r = requests.get(f"{BASE}/{endpoint}", params=p, timeout=20)
+            if r.status_code == 200:
+                return r.json()
+            if r.status_code == 429 or r.status_code >= 500:
+                time.sleep(1.0 * (attempt + 1))   # rate-limited / server hiccup — back off
+                continue
+            return {}                              # 4xx (bad key, not found) — no point retrying
+        except Exception:
+            time.sleep(0.5 * (attempt + 1))        # network hiccup — retry
     return {}
 
 def first(raw):
@@ -433,13 +444,13 @@ def build_row_from_parts(sym, prof, km, rat, inc_list):
         r0 = gf(inc_list[0],"revenue") or 0
         r2 = gf(inc_list[2],"revenue") or 0
         if r2 and r2>0: rev_cagr = ((r0/r2)**0.5-1)*100
-    # Flag pre-revenue / early companies (rev < $10M in the current OR prior year).
+    # Flag pre-revenue / early companies (rev < $50M in the current OR prior year).
     # Their revenue-growth % is computed off a near-zero base (Joby $0.1M→$53M =
-    # +39,000%), which distorts growth screens — so it's optionally excludable.
+    # +39,000%), which distorts growth screens — excluded by default, opt-in to show.
     _rn = gf(inc_list[0], "revenue") if inc_list else None
     _rp = gf(inc_list[1], "revenue") if len(inc_list) >= 2 else None
     _revs = [x for x in (_rn, _rp) if x is not None]
-    pre_revenue = (not _revs) or (min(_revs) < 10_000_000)
+    pre_revenue = (not _revs) or (min(_revs) < 50_000_000)
     if len(inc_list) >= 2:
         e0 = gf(inc_list[0],"eps","epsdiluted") or 0
         e1 = gf(inc_list[1],"eps","epsdiluted") or 0
@@ -3171,10 +3182,11 @@ def show_screener_page():
         univ = [r for r in univ if _seg_match(r)]
     if _sel_sec:
         univ = [r for r in univ if r.get("sector","—") in _sel_sec]
-    # Optional: exclude pre-revenue companies (toggle under the Revenue Growth metric)
+    # Pre-revenue companies are EXCLUDED by default when screening by Revenue
+    # Growth; the "Include pre-revenue" checkbox opts them back in.
     _ms_now = st.session_state.get("metric_states") or {}
     if (_ms_now.get("Revenue Growth (YoY)", {}).get("enabled")
-            and st.session_state.get("exclude_prerev")):
+            and not st.session_state.get("include_prerev")):
         univ = [r for r in univ if not r.get("pre_revenue")]
 
     n_univ = len(univ)
@@ -3279,14 +3291,16 @@ def show_screener_page():
                     if mname not in hlp: hlp.append(mname)
                     if mname in rp: rp.remove(mname)
 
-                # Pre-revenue toggle — only under the Revenue Growth metric
+                # Pre-revenue toggle — only under the Revenue Growth metric.
+                # Excluded by DEFAULT; check the box to include them.
                 if mname == "Revenue Growth (YoY)":
                     st.checkbox(
-                        "Exclude pre-revenue (rev < $10M)",
-                        key="exclude_prerev",
-                        help="Hide companies whose revenue was under $10M in the current "
-                             "OR prior year. Their growth % is computed off a near-zero base "
-                             "(e.g. Joby $0.1M→$53M = +39,000%), which distorts the ranking.")
+                        "Include pre-revenue (rev < $50M)",
+                        key="include_prerev",
+                        help="Off by default: companies with under $50M revenue (current or "
+                             "prior year) are hidden, because their growth % comes off a "
+                             "near-zero base (e.g. Joby $0.1M→$53M = +39,000%) and distorts the "
+                             "ranking. Check this to include them anyway.")
 
             st.markdown("<div style='margin-bottom:4px;'></div>", unsafe_allow_html=True)
 

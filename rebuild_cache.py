@@ -68,8 +68,11 @@ def main():
     emap = A["fetch_earnings_map"]()
     print(f"earnings calendar: {len(emap)} symbols", flush=True)
 
+    # 6 workers (not 12): FMP rate-limits under heavy parallel load, and a
+    # throttled call drops that company. Fewer workers + fmp()'s retry/backoff
+    # keeps the full universe. The daily job isn't time-critical, so slower is fine.
     universe, done, t0 = [], 0, time.time()
-    with ThreadPoolExecutor(max_workers=12) as ex:
+    with ThreadPoolExecutor(max_workers=6) as ex:
         futures = {ex.submit(A["fetch_universe_row"], s): s for s in tickers}
         for fut in as_completed(futures):
             sym = futures[fut]
