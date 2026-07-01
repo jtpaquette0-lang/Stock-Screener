@@ -309,6 +309,16 @@ div[data-testid="stRadio"] label p {{color:#ffffff!important;}}
 .stDownloadButton>button{{background:#1f6feb!important;color:#ffffff!important;
     border:none!important;font-weight:600!important;}}
 .stDownloadButton>button:hover{{background:#388bfd!important;}}
+/* Form submit buttons (e.g. the Log in button) — blue bg, visible white text */
+[data-testid="stFormSubmitButton"] button,
+.stForm button[kind="secondaryFormSubmit"],
+.stForm button{{background:{C['blue_border']}!important;color:#ffffff!important;
+    border:none!important;border-radius:6px!important;font-weight:600!important;
+    padding:9px 18px!important;}}
+[data-testid="stFormSubmitButton"] button *,
+.stForm button *{{color:#ffffff!important;}}
+[data-testid="stFormSubmitButton"] button:hover,
+.stForm button:hover{{background:#388bfd!important;}}
 /* Portfolio add button — dark bg with green text always visible */
 [data-testid="stButton"] button[kind="secondary"]{{
     background:#1a2332!important;color:#00d084!important;
