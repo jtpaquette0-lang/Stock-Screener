@@ -479,6 +479,13 @@ def build_row_from_parts(sym, prof, km, rat, inc_list):
              or gf(km,"peRatioTTM"))
     peg   = (gf(rat,"priceToEarningsGrowthRatioTTM","priceEarningsToGrowthRatioTTM")
              or gf(km,"pegRatioTTM"))
+    # Sanitize absurd ratios. Fresh spinoffs / stub tickers (e.g. FDXF) get broken
+    # per-share data from FMP — a 42,000% earnings yield or a P/E of -0.005 — which
+    # would otherwise top the screen. Reject values outside any real-world range.
+    if ey  is not None and abs(ey)  > 100: ey  = None    # >100% yield = data error
+    if fcfy is not None and abs(fcfy) > 100: fcfy = None
+    if pe  is not None and abs(pe)  < 0.3: pe  = None     # near-zero P/E = data error
+    if peg is not None and abs(peg) > 100: peg = None
     eveb  = (gf(km,"evToEBITDATTM","enterpriseValueOverEBITDATTM")
              or gf(rat,"enterpriseValueMultipleTTM"))
     de    = gf(rat,"debtEquityRatioTTM","debtToEquityRatioTTM") or gf(km,"debtToEquityTTM")
