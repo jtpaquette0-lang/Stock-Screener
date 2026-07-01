@@ -105,6 +105,13 @@ def main():
                 seen[name] = (idx, mc)
                 deduped[idx] = row
 
+    # SAFETY GUARD: never overwrite a good cache with a broken/empty rebuild
+    # (e.g. missing FMP_API_KEY, or the API being down). Fail loudly instead so
+    # the workflow's commit step is skipped and the existing cache is preserved.
+    if len(deduped) < 500:
+        sys.exit(f"ABORT: only {len(deduped)} companies built — refusing to overwrite "
+                 f"the cache. Check that FMP_API_KEY is set and the API is reachable.")
+
     A["universe_cache_save"](deduped, tim)
     print(f"DONE — {len(deduped)} companies cached in {(time.time()-t0)/60:.1f} min", flush=True)
 
