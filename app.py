@@ -445,12 +445,16 @@ def build_row_from_parts(sym, prof, km, rat, inc_list):
         r2 = gf(inc_list[2],"revenue") or 0
         if r2 and r2>0: rev_cagr = ((r0/r2)**0.5-1)*100
     # Flag pre-revenue / early companies (rev < $50M in the current OR prior year).
-    # Their revenue-growth % is computed off a near-zero base (Joby $0.1M→$53M =
-    # +39,000%), which distorts growth screens — excluded by default, opt-in to show.
+    # "Distorted growth" flag — excluded from the growth screen by default (opt-in
+    # toggle to show). Catches two cases whose growth % is misleading:
+    #   1. Pre-revenue / early: <$50M revenue in the current or prior year (Joby).
+    #   2. Acquisition/small-base jumps: >300% YoY growth (QXO $57M→$6.8B = +11,900%).
+    # No company grows organically >300% in a year — it's always a base/M&A artifact.
     _rn = gf(inc_list[0], "revenue") if inc_list else None
     _rp = gf(inc_list[1], "revenue") if len(inc_list) >= 2 else None
     _revs = [x for x in (_rn, _rp) if x is not None]
-    pre_revenue = (not _revs) or (min(_revs) < 50_000_000)
+    pre_revenue = ((not _revs) or (min(_revs) < 50_000_000)
+                   or (rev_growth is not None and rev_growth > 300))
     if len(inc_list) >= 2:
         e0 = gf(inc_list[0],"eps","epsdiluted") or 0
         e1 = gf(inc_list[1],"eps","epsdiluted") or 0
@@ -3216,12 +3220,13 @@ def show_screener_page():
                 # Excluded by DEFAULT; check the box to include them.
                 if mname == "Revenue Growth (YoY)":
                     st.checkbox(
-                        "Include pre-revenue (rev < $50M)",
+                        "Include distorted growth (pre-revenue / M&A)",
                         key="include_prerev",
-                        help="Off by default: companies with under $50M revenue (current or "
-                             "prior year) are hidden, because their growth % comes off a "
-                             "near-zero base (e.g. Joby $0.1M→$53M = +39,000%) and distorts the "
-                             "ranking. Check this to include them anyway.")
+                        help="Off by default: hides companies whose growth % is misleading — "
+                             "under $50M revenue in the current or prior year, OR >300% YoY "
+                             "growth (a small-base or acquisition jump, e.g. QXO $57M→$6.8B = "
+                             "+11,900%). No company grows organically >300% in a year. "
+                             "Check this to include them anyway.")
 
             st.markdown("<div style='margin-bottom:4px;'></div>", unsafe_allow_html=True)
 
