@@ -523,7 +523,7 @@ def build_row_from_parts(sym, prof, km, rat, inc_list):
         "ceo":    prof.get("ceo",""),
         "employees": prof.get("fullTimeEmployees"),
         "website":prof.get("website",""),
-        "description":(prof.get("description","") or "")[:200],
+        "description":(prof.get("description","") or "")[:600],
         # screening fields
         "rev_growth":rev_growth, "rev_cagr":rev_cagr, "roic":roic,
         "gross_margin":gm, "op_margin":op_m, "net_margin":net_m,
@@ -634,7 +634,7 @@ def _yf_backfill_row(row, sym):
     if not row.get("website"):
         row["website"] = ydata.get("website", "")
     if not row.get("description"):
-        row["description"] = (ydata.get("longBusinessSummary", "") or "")[:200]
+        row["description"] = (ydata.get("longBusinessSummary", "") or "")[:600]
     return row
 
 # Core screening fields FMP should populate for a large cap; if ≥2 are missing
@@ -707,7 +707,7 @@ def fetch_universe_row(sym):
                "mkt_cap": "—", "mkt_cap_raw": None, "price": "—",
                "ceo": prof.get("ceo", ""), "employees": prof.get("fullTimeEmployees"),
                "website": prof.get("website", ""),
-               "description": (prof.get("description", "") or "")[:200],
+               "description": (prof.get("description", "") or "")[:600],
                "rev_growth": None, "rev_cagr": None, "roic": None, "gross_margin": None,
                "op_margin": None, "net_margin": None, "roe": None, "earnings_yield": None,
                "fcf_yield": None, "peg": None, "pe": None, "ev_ebitda": None,
@@ -993,6 +993,11 @@ def fetch_dd_extras(sym):
     execs_raw = fmp("key-executives", {"symbol":sym})
     execs = execs_raw if isinstance(execs_raw,list) else []
 
+    # Full company description (the cached universe row only keeps a 200-char snippet,
+    # which cuts off mid-word). Pull the complete text here for the overview.
+    _prof = first(fmp("profile", {"symbol": sym}))
+    full_description = (_prof.get("description") or "").strip()
+
     def get_stmt(endpoint, period, limit):
         raw = fmp(endpoint, {"symbol":sym,"period":period,"limit":limit})
         return raw if isinstance(raw,list) else []
@@ -1033,6 +1038,7 @@ def fetch_dd_extras(sym):
 
     return {
         "executives":      execs,
+        "description":     full_description,
         "income_annual":   inc_a,
         "income_quarter":  inc_q,
         "balance_annual":  bal_a,
@@ -2139,23 +2145,33 @@ def show_dd_page():
     website   = rrow.get("website","")
     emp_str   = f"{int(emp_count):,}" if emp_count else "N/A"
 
-    # Build 3 paragraphs
-    para1 = desc_text if desc_text else f"{rrow.get('name',sym)} operates in the {rrow.get('sector','—')} sector."
+    # ── Para 1: full company description, trimmed at a sentence (not mid-word) ──
+    def _trim_sentence(text, limit=550):
+        text = (text or "").strip()
+        if len(text) <= limit:
+            return text
+        cut = text[:limit]
+        end = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
+        return (cut[:end+1] if end > limit * 0.4 else cut.rstrip() + "…")
+    full_desc = (extras.get("description") or "").strip() or desc_text
+    para1 = (_trim_sentence(full_desc) if full_desc and full_desc != "No description available."
+             else f"{rrow.get('name',sym)} operates in the {rrow.get('sector','—')} sector.")
 
-    exec_lines = []
-    for e in execs[:5]:
-        title = e.get("title","")
-        name  = e.get("name","")
-        pay   = e.get("pay")
-        pay_s = f" (compensation: ${pay/1e6:.1f}M)" if pay and pay>0 else ""
-        if name and title:
-            exec_lines.append(f"<b>{name}</b> serves as {title}{pay_s}")
-    if exec_lines:
-        para2 = (f"{rrow.get('name',sym)} is led by {exec_lines[0]}. "
-                 + (f"Other key leaders include: {', '.join(exec_lines[1:])}." if len(exec_lines)>1 else ""))
+    # ── Para 2: leadership — clean, grammatical list (no more "led by X serves as…") ──
+    def _fmt_exec(e):
+        name  = (e.get("name") or "").strip()
+        title = (e.get("title") or "").strip()
+        if not name or not title:
+            return None
+        pay = e.get("pay")
+        pay_s = f", ${pay/1e6:.1f}M comp" if isinstance(pay, (int, float)) and pay > 0 else ""
+        return f"<b>{name}</b> — {title}{pay_s}"
+    execs_fmt = [x for x in (_fmt_exec(e) for e in execs[:5]) if x]
+    if execs_fmt:
+        para2 = f"Key leadership at {rrow.get('name',sym)}: " + "; ".join(execs_fmt) + "."
     else:
         para2 = (f"{rrow.get('name',sym)} is led by its executive team"
-                 + (f", including CEO {ceo_name}" if ceo_name and ceo_name!="—" else "") + ".")
+                 + (f", including CEO {ceo_name}" if ceo_name and ceo_name != "—" else "") + ".")
 
     mktcap_s = rrow.get("mkt_cap","N/A")
     score_s  = f"{rrow.get('composite_score',0):.0f}/100"
