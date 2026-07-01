@@ -1097,78 +1097,25 @@ def news_ago(dt_str):
 # EARNINGS HELPERS
 # ─────────────────────────────────────────────────────────────
 def fetch_earnings_history(sym, limit=8):
-    """Historical earnings surprises from yfinance."""
-    if not YF:
+    """Historical earnings surprises from FMP's per-symbol earnings endpoint.
+    (Was yfinance, which is blocked on Streamlit Cloud / GitHub datacenter IPs —
+    that blanked the surprises table for EVERY company, not just new tickers.)"""
+    data = fmp("earnings", {"symbol": sym, "limit": limit + 8})
+    if not isinstance(data, list):
         return []
-    try:
-        t = yf.Ticker(sym)
-        rows = []
-
-        def sane_eps(v):
-            """Return float if it looks like a per-share EPS value, else None."""
-            try:
-                f = float(v)
-                return f if (-500 < f < 5000) and str(v) not in ("nan","None","") else None
-            except: return None
-
-        # Primary: earnings_dates — most reliable source in current yfinance
-        try:
-            ed = t.earnings_dates
-            if ed is not None and not ed.empty:
-                count = 0
-                for idx, row in ed.iterrows():
-                    if count >= limit: break
-                    # Try every possible column name variation
-                    actual   = None
-                    estimate = None
-                    for col in ed.columns:
-                        cl = col.lower().replace(" ","").replace("_","")
-                        v  = row[col]
-                        if cl in ("reportedeps","epsactual","actualeps","actual"):
-                            candidate = sane_eps(v)
-                            if candidate is not None: actual = candidate
-                        if cl in ("epsestimate","estimatedeps","estimate","epsestimated"):
-                            candidate = sane_eps(v)
-                            if candidate is not None: estimate = candidate
-                    if actual is None and estimate is None: continue
-                    rows.append({
-                        "date": str(idx)[:10],
-                        "actualEarningResult": actual,
-                        "estimatedEarning":    estimate,
-                    })
-                    count += 1
-                if rows:
-                    return rows
-        except: pass
-
-        # Fallback: earnings_history
-        try:
-            hist = t.earnings_history
-            if hist is not None and not hist.empty and len(hist.columns) > 0:
-                for idx, row in hist.head(limit).iterrows():
-                    actual = estimate = None
-                    for col in hist.columns:
-                        cl = col.lower().replace(" ","").replace("_","")
-                        v  = row[col]
-                        if cl in ("reportedeps","epsactual","actualeps","actual"):
-                            candidate = sane_eps(v)
-                            if candidate is not None: actual = candidate
-                        if cl in ("epsestimate","estimatedeps","estimate","epsestimated"):
-                            candidate = sane_eps(v)
-                            if candidate is not None: estimate = candidate
-                    if actual is None and estimate is None: continue
-                    rows.append({
-                        "date": str(idx)[:10],
-                        "actualEarningResult": actual,
-                        "estimatedEarning":    estimate,
-                    })
-                if rows:
-                    return rows
-        except: pass
-
-        return []
-    except:
-        return []
+    rows = []
+    for e in data:
+        actual = e.get("epsActual")
+        if actual is None:      # upcoming / not yet reported → belongs to Next Earnings
+            continue
+        rows.append({
+            "date": (e.get("date") or "")[:10],
+            "actualEarningResult": actual,
+            "estimatedEarning":    e.get("epsEstimated"),
+        })
+        if len(rows) >= limit:
+            break
+    return rows
 
 def fetch_next_earnings(sym):
     """Next upcoming earnings date from yfinance."""
