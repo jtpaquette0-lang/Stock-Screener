@@ -2568,56 +2568,49 @@ def show_dd_page():
         shapes=CHART_BORDER,
     )
 
-    # ── Chart 1: Revenue Trend — full width ──────────────────
+    # ── Chart: Revenue & Profitability — revenue bars + net-margin line ──────
+    # One clean view: bars = annual revenue, line (right axis) = net margin %.
+    # Years with no revenue (fresh spinoffs) are skipped so it never renders empty.
     rows = extras["income_annual"]
-    if rows:
-        dates = [r.get("date","")[:4] for r in reversed(rows)]
-        revs  = [(r.get("revenue")    or 0)/1e9 for r in reversed(rows)]
-        gprof = [(r.get("grossProfit") or 0)/1e9 for r in reversed(rows)]
-        net_i = [(r.get("netIncome")  or 0)/1e9 for r in reversed(rows)]
+    pts = []
+    for r in reversed(rows or []):                 # oldest → newest
+        rev = r.get("revenue")
+        if not rev:                                # skip years without revenue
+            continue
+        yr = (r.get("date", "") or "")[:4]
+        ni = r.get("netIncome")
+        margin = (ni / rev * 100) if (ni is not None and rev) else None
+        # Drop meaningless margins from near-zero-revenue years (e.g. Joby's
+        # -447,000%) so they don't blow out the axis — those years just show a bar.
+        if margin is not None and abs(margin) > 150:
+            margin = None
+        pts.append((yr, rev / 1e9, margin))
+    if pts:
+        years   = [p[0] for p in pts]
+        revs_b  = [p[1] for p in pts]
+        margins = [p[2] for p in pts]
         fig = go.Figure()
-        fig.add_trace(go.Bar(name="Revenue",      x=dates, y=revs,
+        fig.add_trace(go.Bar(name="Revenue ($B)", x=years, y=revs_b,
                              marker_color="#3b82f6", marker_line_width=0))
-        fig.add_trace(go.Bar(name="Gross Profit", x=dates, y=gprof,
-                             marker_color="#10b981", marker_line_width=0))
-        fig.add_trace(go.Bar(name="Net Income",   x=dates, y=net_i,
-                             marker_color="#f59e0b", marker_line_width=0))
-        fig.update_layout(**DARK, barmode="group", height=380)
-        fig.update_yaxes(title_text="USD Billions", tickprefix="$")
+        fig.add_trace(go.Scatter(name="Net Margin %", x=years, y=margins,
+                                 mode="lines+markers", yaxis="y2",
+                                 line=dict(color="#f0b429", width=3),
+                                 marker=dict(size=9, color="#f0b429")))
+        fig.update_layout(**DARK, height=400)
+        fig.update_yaxes(title_text="Revenue ($B)", tickprefix="$")
+        fig.update_layout(yaxis2=dict(
+            title="Net Margin %", overlaying="y", side="right",
+            tickfont=dict(color="#f0b429", size=12),
+            title_font=dict(color="#f0b429", size=13),
+            zeroline=False, showgrid=False, ticksuffix="%"))
         fig.update_xaxes(tickfont=dict(size=13))
-        st.markdown("<div style='font-size:15px;font-weight:600;color:#ffffff;margin-bottom:6px;'>📈 Revenue Trend ($B)</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:15px;font-weight:600;color:#ffffff;margin-bottom:6px;'>"
+                    "📊 Revenue &amp; Profitability</div>", unsafe_allow_html=True)
         st.plotly_chart(fig, width='stretch')
+        st.caption("Bars = annual revenue · line = net profit margin (right axis). "
+                   "Rising bars = growth; rising line = expanding margins.")
     else:
         st.info("Revenue data not available.")
-
-    # ── Chart 2: Margin Expansion — full width ────────────────
-    if rows:
-        # Calculate from actual values — don't rely on ratio fields
-        def safe_margin(r, num_key, denom_key="revenue"):
-            n = r.get(num_key) or 0; d = r.get(denom_key) or 1
-            return (n / d * 100) if d else 0
-        dates = [r.get("date","")[:4] for r in reversed(rows)]
-        gm_   = [safe_margin(r,"grossProfit")    for r in reversed(rows)]
-        om_   = [safe_margin(r,"operatingIncome") for r in reversed(rows)]
-        nm_   = [safe_margin(r,"netIncome")       for r in reversed(rows)]
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(name="Gross Margin", x=dates, y=gm_,
-                                  mode="lines+markers",
-                                  line=dict(color="#10b981", width=2.5),
-                                  marker=dict(size=8, color="#10b981")))
-        fig.add_trace(go.Scatter(name="Operating Margin", x=dates, y=om_,
-                                  mode="lines+markers",
-                                  line=dict(color="#3b82f6", width=2.5),
-                                  marker=dict(size=8, color="#3b82f6")))
-        fig.add_trace(go.Scatter(name="Net Margin", x=dates, y=nm_,
-                                  mode="lines+markers",
-                                  line=dict(color="#f59e0b", width=2.5),
-                                  marker=dict(size=8, color="#f59e0b")))
-        fig.update_layout(**DARK, height=380)
-        fig.update_yaxes(title_text="Margin %", ticksuffix="%")
-        fig.update_xaxes(tickfont=dict(size=13))
-        st.markdown("<div style='font-size:15px;font-weight:600;color:#ffffff;margin-bottom:6px;'>📉 Margin Expansion (%)</div>", unsafe_allow_html=True)
-        st.plotly_chart(fig, width='stretch')
 
     # ── Chart: Peer Comparison — full width ───────────────────
     all_data_peers = st.session_state.universe_data or []
