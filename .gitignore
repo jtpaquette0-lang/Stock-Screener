@@ -20,3 +20,6 @@ Thumbs.db
 
 # NOTE: universe_cache.json IS committed on purpose — the hosted app loads it
 # instantly, and the daily GitHub Action refreshes + commits it.
+
+# Local hash generator (run once, don't commit)
+make_hashes.py

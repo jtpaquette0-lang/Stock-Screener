@@ -3627,9 +3627,10 @@ def require_login():
             p = st.text_input("Password", type="password")
             ok = st.form_submit_button("Log in", width='stretch')
         if ok:
-            if u in users and _pw_hash(p) == str(users[u]):
+            uname = (u or "").strip().lower()
+            if uname in users and _pw_hash(p) == str(users[uname]):
                 st.session_state["authed"]  = True
-                st.session_state["pf_user"] = u
+                st.session_state["pf_user"] = uname
                 st.session_state.pop("pf_cache", None)
                 st.rerun()
             else:
