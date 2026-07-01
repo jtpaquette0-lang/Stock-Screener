@@ -2568,49 +2568,7 @@ def show_dd_page():
         shapes=CHART_BORDER,
     )
 
-    # ── Chart: Revenue & Profitability — revenue bars + net-margin line ──────
-    # One clean view: bars = annual revenue, line (right axis) = net margin %.
-    # Years with no revenue (fresh spinoffs) are skipped so it never renders empty.
-    rows = extras["income_annual"]
-    pts = []
-    for r in reversed(rows or []):                 # oldest → newest
-        rev = r.get("revenue")
-        if not rev:                                # skip years without revenue
-            continue
-        yr = (r.get("date", "") or "")[:4]
-        ni = r.get("netIncome")
-        margin = (ni / rev * 100) if (ni is not None and rev) else None
-        # Drop meaningless margins from near-zero-revenue years (e.g. Joby's
-        # -447,000%) so they don't blow out the axis — those years just show a bar.
-        if margin is not None and abs(margin) > 150:
-            margin = None
-        pts.append((yr, rev / 1e9, margin))
-    if pts:
-        years   = [p[0] for p in pts]
-        revs_b  = [p[1] for p in pts]
-        margins = [p[2] for p in pts]
-        fig = go.Figure()
-        fig.add_trace(go.Bar(name="Revenue ($B)", x=years, y=revs_b,
-                             marker_color="#3b82f6", marker_line_width=0))
-        fig.add_trace(go.Scatter(name="Net Margin %", x=years, y=margins,
-                                 mode="lines+markers", yaxis="y2",
-                                 line=dict(color="#f0b429", width=3),
-                                 marker=dict(size=9, color="#f0b429")))
-        fig.update_layout(**DARK, height=400)
-        fig.update_yaxes(title_text="Revenue ($B)", tickprefix="$")
-        fig.update_layout(yaxis2=dict(
-            title="Net Margin %", overlaying="y", side="right",
-            tickfont=dict(color="#f0b429", size=12),
-            title_font=dict(color="#f0b429", size=13),
-            zeroline=False, showgrid=False, ticksuffix="%"))
-        fig.update_xaxes(tickfont=dict(size=13))
-        st.markdown("<div style='font-size:15px;font-weight:600;color:#ffffff;margin-bottom:6px;'>"
-                    "📊 Revenue &amp; Profitability</div>", unsafe_allow_html=True)
-        st.plotly_chart(fig, width='stretch')
-        st.caption("Bars = annual revenue · line = net profit margin (right axis). "
-                   "Rising bars = growth; rising line = expanding margins.")
-    else:
-        st.info("Revenue data not available.")
+    # ── Revenue & Profitability chart removed for now (revisit later) ─────────
 
     # ── Chart: Peer Comparison — full width ───────────────────
     all_data_peers = st.session_state.universe_data or []
